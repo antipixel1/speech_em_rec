@@ -37,6 +37,7 @@ from keras.utils import to_categorical
 import re
 from ast import literal_eval
 import visualkeras
+
 def feature_extraction(path_dict, counter):
     x, sr = librosa.load(path_dict[counter],duration=2.5, res_type = 'kaiser_fast', sr=22050*2, offset=0.5)
     mel_spectrogram_feature = librosa.feature.melspectrogram(y=x, sr=sr) 
@@ -57,15 +58,15 @@ def feature_extraction(path_dict, counter):
     #tonnetz_feature = librosa.power_to_db(tonnetz_feature)
     tonnetz_feature = np.mean(tonnetz_feature.T, axis = 0)
     return [mfcc_feature, chromagram_feature, mel_spectrogram_feature, spectral_contrast_feature, tonnetz_feature]
+
 def feature_normalization(feature_array):
     scaler = MinMaxScaler(feature_range=(0, 1))
     for i in range(0, len(feature_array)):
         feature_array[i] = scaler.fit_transform(feature_array[i].reshape(-1,1))
     return feature_array
-def main():
-    print("Speech recognition test")
-    #Now for all the files in the dataset
-    #Create audio dataframe
+
+def create_feature_dataframe(dataframe_filename):
+    #Iterate over all the files in the dataset and load the data
     emotion = []
     gender = []
     actor = []
@@ -89,24 +90,35 @@ def main():
     audio_df.columns = ['gender','emotion','actor']
     audio_df = pd.concat([audio_df,pd.DataFrame(file_path, columns = ['path'])],axis=1)
     ipd.display(audio_df)
-    #Add features to dataframe
-    #Uncomment code if you don't have audio_df_full.csv file
-    # df = pd.DataFrame(columns=['MFCC', 'Chromagram', 'Mel_spectrogram', 'Spectral_contrast', 'Tonnetz'])
-    # counter = 0
-    # path_dict = {}
-    # rows = []
-    # for index, path in enumerate(audio_df.path):
-    #     path_dict[counter] = path
-    #     counter = counter + 1
-    # results = Parallel(n_jobs=4)(delayed(feature_extraction)(path_dict, counter) for counter in range(0, len(path_dict)))
-    # for i in range(0, len(results)):
-    #     df.loc[i] = results[i]
-    # print(len(df))
-    # df.head()
-    # df_combined = pd.concat([audio_df,df],axis=1)
-    # ipd.display(df_combined)
-    # df_combined.to_csv('audio_df_full_tuneado.csv', index=False)
-    df_combined = pd.read_csv('audio_df_full_tuneado.csv')
+    #Now, extract the features
+    df = pd.DataFrame(columns=['MFCC', 'Chromagram', 'Mel_spectrogram', 'Spectral_contrast', 'Tonnetz'])
+    counter = 0
+    path_dict = {}
+    rows = []
+    for index, path in enumerate(audio_df.path):
+        path_dict[counter] = path
+        counter = counter + 1
+    results = Parallel(n_jobs=4)(delayed(feature_extraction)(path_dict, counter) for counter in range(0, len(path_dict)))
+    for i in range(0, len(results)):
+        df.loc[i] = results[i]
+    print(len(df))
+    df.head()
+    df_combined = pd.concat([audio_df,df],axis=1)
+    ipd.display(df_combined)
+    df_combined.to_csv(dataframe_filename, index=False)
+
+#Helper method to fix problem with dirty values
+def clean_column_data(column_data): 
+    column_data = column_data.replace('\n','', regex=True)
+    column_data = column_data.replace('\[','', regex=True)
+    column_data = column_data.replace('\s*\]','', regex=True)
+    column_data = column_data.replace('\s+',',', regex=True)
+    column_data = column_data.replace('\,+',',', regex=True)
+    column_data = column_data.replace('\,+$','', regex=True)
+    column_data = column_data.replace('^\,','', regex=True)
+    return column_data
+
+def create_train_test_split(df_combined, lb):
     #Split into train and test
     ipd.display(df_combined)
     train,test = model_selection.train_test_split(df_combined, test_size=0.2, random_state=0,
@@ -124,23 +136,9 @@ def main():
     ipd.display(X_test)
     ipd.display(y_test)
     for column in X_train:
-        X_train[column] = X_train[column].replace('\n','', regex=True)
-        X_train[column] = X_train[column].replace('\[','', regex=True)
-        X_train[column] = X_train[column].replace('\s*\]','', regex=True)
-        X_train[column] = X_train[column].replace('\s+',',', regex=True)
-        X_train[column] = X_train[column].replace('\,+',',', regex=True)
-        X_train[column] = X_train[column].replace('\,+$','', regex=True)
-        X_train[column] = X_train[column].replace('^\,','', regex=True)
-        #X_train[column] = X_train[column].apply(literal_eval)
+        X_train[column] = clean_column_data(X_train[column])
     for column in X_test:
-        X_test[column] = X_test[column].replace('\n','', regex=True)
-        X_test[column] = X_test[column].replace('\[','', regex=True)
-        X_test[column] = X_test[column].replace('\s*\]','', regex=True)
-        X_test[column] = X_test[column].replace('\s+',',', regex=True)
-        X_test[column] = X_test[column].replace('\,+',',', regex=True)
-        X_test[column] = X_test[column].replace('\,+$','', regex=True)
-        X_test[column] = X_test[column].replace('^\,','', regex=True)
-        #X_test[column] = X_test[column].apply(literal_eval)
+        X_test[column] = clean_column_data(X_test[column])
     X_train = X_train.applymap(lambda x: np.fromstring(x, dtype=float, sep=','))
     X_test = X_test.applymap(lambda x: np.fromstring(x, dtype=float, sep=','))
     print(len(X_train['Mel_spectrogram'].iloc[0]))
@@ -158,25 +156,26 @@ def main():
     #plt.show()
     X_train = pd.concat([pd.DataFrame(X_train['MFCC'].tolist()), pd.DataFrame(X_train['Chromagram'].tolist()), pd.DataFrame(X_train['Mel_spectrogram'].tolist()), pd.DataFrame(X_train['Spectral_contrast'].tolist()), pd.DataFrame(X_train['Tonnetz'].tolist())], axis=1)
     X_test = pd.concat([pd.DataFrame(X_test['MFCC'].tolist()), pd.DataFrame(X_test['Chromagram'].tolist()), pd.DataFrame(X_test['Mel_spectrogram'].tolist()), pd.DataFrame(X_test['Spectral_contrast'].tolist()), pd.DataFrame(X_test['Tonnetz'].tolist())], axis=1)
-    # mean = np.mean(X_train, axis=0)
-    # std = np.std(X_train, axis=0)
-    # X_train = (X_train - mean)/std
-    # X_test = (X_test - mean)/std
-    # plt.hist(X_train.iloc[0], bins=20)
-    # plt.show()
     # # Convert to numpy arrays
     X_train = np.array(X_train)
     y_train = np.array(y_train)
     X_test = np.array(X_test)
     y_test = np.array(y_test)
-    # X_full = np.concatenate((X_train, X_test), axis=0)
-    # y_full = np.concatenate((y_train, y_test), axis=0)
     # CNN REQUIRES INPUT AND OUTPUT ARE NUMBERS
-    lb = LabelEncoder()
     y_train = to_categorical(lb.fit_transform(y_train.ravel()), num_classes=8)
     y_test = to_categorical(lb.fit_transform(y_test.ravel()), num_classes=8)
     X_train = X_train[:,:,np.newaxis]
     X_test = X_test[:,:,np.newaxis]
+    return [X_train, X_test, y_train, y_test]
+
+def main():
+    print("Speech recognition test")
+    #Add features to dataframe
+    #Uncomment next line if you don't have audio_df_full_upgraded.csv file
+    #create_feature_dataframe('audio_df_full_upgraded.csv')
+    df_combined = pd.read_csv('audio_df_full_upgraded.csv')
+    lb = LabelEncoder()
+    X_train, X_test, y_train, y_test = create_train_test_split(df_combined, lb)
     #Initial model
     # CNN topology - adapted to our paper's model
     # BUILD 1D CNN LAYERS
