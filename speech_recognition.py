@@ -42,20 +42,14 @@ def feature_extraction(path_dict, counter):
     x, sr = librosa.load(path_dict[counter],duration=2.5, res_type = 'kaiser_fast', sr=22050*2, offset=0.5)
     mel_spectrogram_feature = librosa.feature.melspectrogram(y=x, sr=sr) 
     mel_spectrogram_feature = librosa.power_to_db(mel_spectrogram_feature)
-    #temporally average spectrogram
     mel_spectrogram_feature = np.mean(mel_spectrogram_feature.T, axis = 0)
     mfcc_feature = librosa.feature.mfcc(y=x, sr=sr, n_mfcc=40)
-    #mfcc_feature = librosa.power_to_db(mfcc_feature)
     mfcc_feature = np.mean(mfcc_feature.T, axis = 0)
-    #stft =  np.abs(librosa.stft(x))
     chromagram_feature = librosa.feature.chroma_stft(y=x, sr=sr) 
-    #chromagram_feature = librosa.power_to_db(chromagram_feature) 
     chromagram_feature = np.mean(chromagram_feature.T, axis = 0)
     spectral_contrast_feature = librosa.feature.spectral_contrast(y=x, sr=sr) 
-    #spectral_contrast_feature = librosa.power_to_db(spectral_contrast_feature)
     spectral_contrast_feature = np.mean(spectral_contrast_feature.T, axis = 0)
     tonnetz_feature = librosa.feature.tonnetz(y=librosa.effects.harmonic(x), sr=sr) 
-    #tonnetz_feature = librosa.power_to_db(tonnetz_feature)
     tonnetz_feature = np.mean(tonnetz_feature.T, axis = 0)
     return [mfcc_feature, chromagram_feature, mel_spectrogram_feature, spectral_contrast_feature, tonnetz_feature]
 
@@ -118,6 +112,17 @@ def clean_column_data(column_data):
     column_data = column_data.replace('^\,','', regex=True)
     return column_data
 
+def print_feature_ranges(X_train):
+    print(len(X_train['Mel_spectrogram'].iloc[0]))
+    print(X_train['Mel_spectrogram'].iloc[0])
+    print(len(X_train['Mel_spectrogram'].iloc[0]))
+    print(type(X_train['Mel_spectrogram'].iloc[0]))
+    print("MFCC min and max values: ", np.min(X_train['MFCC'].iloc[0]), np.max(X_train['MFCC'].iloc[0]))
+    print("Chromagram min and max values: ", np.min(X_train['Chromagram'].iloc[0]), np.max(X_train['Chromagram'].iloc[0]))
+    print("Mel_spectrogram min and max values: ", np.min(X_train['Mel_spectrogram'].iloc[0]), np.max(X_train['Mel_spectrogram'].iloc[0]))
+    print("Spectral_contrast min and max values: ", np.min(X_train['Spectral_contrast'].iloc[0]), np.max(X_train['Spectral_contrast'].iloc[0]))
+    print("Tonnetz min and max values: ", np.min(X_train['Tonnetz'].iloc[0]), np.max(X_train['Tonnetz'].iloc[0]))
+    
 def create_train_test_split(df_combined, lb):
     #Split into train and test
     ipd.display(df_combined)
@@ -141,19 +146,7 @@ def create_train_test_split(df_combined, lb):
         X_test[column] = clean_column_data(X_test[column])
     X_train = X_train.applymap(lambda x: np.fromstring(x, dtype=float, sep=','))
     X_test = X_test.applymap(lambda x: np.fromstring(x, dtype=float, sep=','))
-    print(len(X_train['Mel_spectrogram'].iloc[0]))
-    print(X_train['Mel_spectrogram'].iloc[0])
-    print(len(X_train['Mel_spectrogram'].iloc[0]))
-    print(type(X_train['Mel_spectrogram'].iloc[0]))
-    print("MFCC min and max values: ", np.min(X_train['MFCC'].iloc[0]), np.max(X_train['MFCC'].iloc[0]))
-    print("Chromagram min and max values: ", np.min(X_train['Chromagram'].iloc[0]), np.max(X_train['Chromagram'].iloc[0]))
-    print("Mel_spectrogram min and max values: ", np.min(X_train['Mel_spectrogram'].iloc[0]), np.max(X_train['Mel_spectrogram'].iloc[0]))
-    print("Spectral_contrast min and max values: ", np.min(X_train['Spectral_contrast'].iloc[0]), np.max(X_train['Spectral_contrast'].iloc[0]))
-    print("Tonnetz min and max values: ", np.min(X_train['Tonnetz'].iloc[0]), np.max(X_train['Tonnetz'].iloc[0]))
-    #plt.hist(X_train['MFCC'].iloc[0], bins=20)
-    #plt.show()
-    #plt.hist(X_train['Spectral_contrast'].iloc[0], bins=20)
-    #plt.show()
+    print_feature_ranges(X_train)
     X_train = pd.concat([pd.DataFrame(X_train['MFCC'].tolist()), pd.DataFrame(X_train['Chromagram'].tolist()), pd.DataFrame(X_train['Mel_spectrogram'].tolist()), pd.DataFrame(X_train['Spectral_contrast'].tolist()), pd.DataFrame(X_train['Tonnetz'].tolist())], axis=1)
     X_test = pd.concat([pd.DataFrame(X_test['MFCC'].tolist()), pd.DataFrame(X_test['Chromagram'].tolist()), pd.DataFrame(X_test['Mel_spectrogram'].tolist()), pd.DataFrame(X_test['Spectral_contrast'].tolist()), pd.DataFrame(X_test['Tonnetz'].tolist())], axis=1)
     # # Convert to numpy arrays
@@ -161,24 +154,14 @@ def create_train_test_split(df_combined, lb):
     y_train = np.array(y_train)
     X_test = np.array(X_test)
     y_test = np.array(y_test)
-    # CNN REQUIRES INPUT AND OUTPUT ARE NUMBERS
+    # Make CNN inputs and outputs numerical
     y_train = to_categorical(lb.fit_transform(y_train.ravel()), num_classes=8)
     y_test = to_categorical(lb.fit_transform(y_test.ravel()), num_classes=8)
     X_train = X_train[:,:,np.newaxis]
     X_test = X_test[:,:,np.newaxis]
     return [X_train, X_test, y_train, y_test]
 
-def main():
-    print("Speech recognition test")
-    #Add features to dataframe
-    #Uncomment next line if you don't have audio_df_full_upgraded.csv file
-    #create_feature_dataframe('audio_df_full_upgraded.csv')
-    df_combined = pd.read_csv('audio_df_full_upgraded.csv')
-    lb = LabelEncoder()
-    X_train, X_test, y_train, y_test = create_train_test_split(df_combined, lb)
-    #Initial model
-    # CNN topology - adapted to our paper's model
-    # BUILD 1D CNN LAYERS
+def create_model(X_train):
     model = Sequential()
     model.add(Conv1D(256, kernel_size=(5), input_shape=(X_train.shape[1],1), strides=1, padding='same'))
     model.add(BatchNormalization())
@@ -205,8 +188,24 @@ def main():
     model.add(Activation('softmax'))
     opt = keras.optimizers.RMSprop(learning_rate=0.00001, decay=1e-6)
     model.compile(loss='categorical_crossentropy', optimizer=opt,metrics=['accuracy'])
-    #visualkeras.layered_view(model, scale_xy=1, scale_z=1, max_z=100, max_xy=100, type_ignore=[Dropout, Activation, BatchNormalization], legend=True, to_file='outputCNN2.png')
+    return model
 
+def main():
+    print("Speech recognition test")
+    #Add features to dataframe
+    #Uncomment next line if you don't have audio_df_full_upgraded.csv file
+    #create_feature_dataframe('audio_df_full_upgraded.csv')
+    df_combined = pd.read_csv('audio_df_full_upgraded.csv')
+    lb = LabelEncoder()
+    X_train, X_test, y_train, y_test = create_train_test_split(df_combined, lb)
+    #Initial model
+    # CNN topology - adapted to CNN model from the paper
+    # BUILD 1D CNN LAYERS
+    model = create_model(X_train)
+    opt = keras.optimizers.RMSprop(learning_rate=0.00001, decay=1e-6)
+    model.compile(loss='categorical_crossentropy', optimizer=opt,metrics=['accuracy'])
+    #If you need a visual representation of the CNN
+    #visualkeras.layered_view(model, scale_xy=1, scale_z=1, max_z=100, max_xy=100, type_ignore=[Dropout, Activation, BatchNormalization], legend=True, to_file='outputCNN2.png')
     # TRAINING
     # Set callback functions to early stop training and save the best model so far
     callbacks = [EarlyStopping(monitor='val_loss', patience=20),
@@ -236,8 +235,6 @@ def main():
     print("Evaluate on test data")
     results = model.evaluate(X_test, y_test, batch_size=128)
     print("test loss, test acc:", results)
-    # Generate predictions (probabilities -- the output of the last layer)
-    # on new data using `predict`
     print("Generate predictions for 3 samples")
     predictions = model.predict(X_test[:3])
     print("predictions shape:", predictions.shape)
@@ -246,13 +243,9 @@ def main():
     model.load_weights('best_model.h5')
     # Predict
     y_pred = model.predict(X_test)
-    # Convert predictions classes to one hot vectors
     y_pred_classes = np.argmax(y_pred,axis = 1)
-    # Convert validation observations to one hot vectors
     y_true = np.argmax(y_test,axis = 1)
-    # compute the confusion matrix
     confusion_mtx = confusion_matrix(y_true, y_pred_classes, normalize='true')
-    # plot the confusion matrix
     ConfusionMatrixDisplay(confusion_mtx, display_labels=lb.classes_).plot()
     plt.show()
     # Classification report
