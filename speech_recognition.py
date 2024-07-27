@@ -1,10 +1,6 @@
-import tensorflow as tf 
-from tensorflow.keras import datasets, layers, models
-from IPython.display import Audio
 import IPython.display as ipd
 import matplotlib.pyplot as plt
 import librosa
-import soundfile as sf 
 import os
 import pandas as pd
 import numpy as np
@@ -12,31 +8,23 @@ from sklearn.metrics import confusion_matrix
 from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_score
-from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import classification_report
-from sklearn.dummy import DummyClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import KFold
 import sklearn.model_selection as model_selection
-import sklearn.tree as tree
 from joblib import Parallel, delayed
 import keras
 from keras.models import Sequential
-from keras.layers import Conv1D, MaxPooling1D, AveragePooling1D, Activation
+from keras.layers import Conv1D, MaxPooling1D, Activation
 from keras.layers import Input, Flatten, Dropout, Activation, BatchNormalization, Dense
-from keras.wrappers.scikit_learn import KerasClassifier
-from keras.optimizers import SGD
-from keras.regularizers import l2
-import seaborn as sns
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.utils import to_categorical
-import re
-from ast import literal_eval
-import visualkeras
+from sklearn.model_selection import KFold
+#import visualkeras #if you want the visual representation of CNN
 
 def feature_extraction(path_dict, counter):
     x, sr = librosa.load(path_dict[counter],duration=2.5, res_type = 'kaiser_fast', sr=22050*2, offset=0.5)
@@ -136,10 +124,6 @@ def create_train_test_split(df_combined, lb):
     y_test = test.iloc[:,:2].drop(columns=['gender'])
     X_train = X_train.drop('path', axis=1)
     X_test = X_test.drop('path', axis=1)
-    ipd.display(X_train)
-    ipd.display(y_train)
-    ipd.display(X_test)
-    ipd.display(y_test)
     for column in X_train:
         X_train[column] = clean_column_data(X_train[column])
     for column in X_test:
@@ -161,9 +145,9 @@ def create_train_test_split(df_combined, lb):
     X_test = X_test[:,:,np.newaxis]
     return [X_train, X_test, y_train, y_test]
 
-def create_model(X_train):
+def create_model(input_shape_model):
     model = Sequential()
-    model.add(Conv1D(256, kernel_size=(5), input_shape=(X_train.shape[1],1), strides=1, padding='same'))
+    model.add(Conv1D(256, kernel_size=(5), input_shape=input_shape_model, strides=1, padding='same'))
     model.add(BatchNormalization())
     model.add(Activation('relu'))
     model.add(Conv1D(128, kernel_size=(5), strides=1, padding='same'))
@@ -190,66 +174,73 @@ def create_model(X_train):
     model.compile(loss='categorical_crossentropy', optimizer=opt,metrics=['accuracy'])
     return model
 
+def plot_confusion_matrix(predicted_labels_list, y_test_list, lbenc):
+    cnf_matrix = confusion_matrix(y_test_list, predicted_labels_list, normalize='true')
+    ConfusionMatrixDisplay(cnf_matrix, display_labels=lbenc.classes_).plot()
+    plt.show()
+
 def main():
-    print("Speech recognition test")
+    print("Speech emotion recognition")
     #Add features to dataframe
     #Uncomment next line if you don't have audio_df_full_upgraded.csv file
     #create_feature_dataframe('audio_df_full_upgraded.csv')
     df_combined = pd.read_csv('audio_df_full_upgraded.csv')
+    #Hyperparameters
+    num_folds = 5
+    loss_function = 'categorical_crossentropy'
+    opt = keras.optimizers.RMSprop(learning_rate=0.00001, decay=1e-6)
+    batch_s = 32
+    n_epochs = 700
+    verbosity = 2
     lb = LabelEncoder()
     X_train, X_test, y_train, y_test = create_train_test_split(df_combined, lb)
-    #Initial model
-    # CNN topology - adapted to CNN model from the paper
-    # BUILD 1D CNN LAYERS
-    model = create_model(X_train)
-    opt = keras.optimizers.RMSprop(learning_rate=0.00001, decay=1e-6)
-    model.compile(loss='categorical_crossentropy', optimizer=opt,metrics=['accuracy'])
-    #If you need a visual representation of the CNN
-    #visualkeras.layered_view(model, scale_xy=1, scale_z=1, max_z=100, max_xy=100, type_ignore=[Dropout, Activation, BatchNormalization], legend=True, to_file='outputCNN2.png')
-    # TRAINING
-    # Set callback functions to early stop training and save the best model so far
-    callbacks = [EarlyStopping(monitor='val_loss', patience=20),
-                    ModelCheckpoint(filepath='best_model.h5', monitor='val_loss', save_best_only=True)]
-    # Train the model
-    history = model.fit(X_train, y_train, batch_size=32, epochs=700, validation_data=(X_test, y_test), callbacks=callbacks)
-    # Plot accuracy
-    plt.plot(history.history['accuracy'])
-    plt.plot(history.history['val_accuracy'])
-    plt.title('model accuracy')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.show()
-    # Plot loss
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
-    plt.title('model loss')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.show()
-    # EVALUATION
-    # Load best model
-    model.load_weights('best_model.h5')
-    # Evaluate the model on the test data using `evaluate`
-    print("Evaluate on test data")
-    results = model.evaluate(X_test, y_test, batch_size=128)
-    print("test loss, test acc:", results)
-    print("Generate predictions for 3 samples")
-    predictions = model.predict(X_test[:3])
-    print("predictions shape:", predictions.shape)
-    # PREDICTION
-    # Load best model
-    model.load_weights('best_model.h5')
-    # Predict
-    y_pred = model.predict(X_test)
-    y_pred_classes = np.argmax(y_pred,axis = 1)
-    y_true = np.argmax(y_test,axis = 1)
-    confusion_mtx = confusion_matrix(y_true, y_pred_classes, normalize='true')
-    ConfusionMatrixDisplay(confusion_mtx, display_labels=lb.classes_).plot()
-    plt.show()
-    # Classification report
-    print(classification_report(y_true, y_pred_classes))
-    
+    input_shape_model = (X_train.shape[1],1)
+    acc_folds = []
+    loss_folds = []
+    inputs = np.concatenate((X_train, X_test), axis=0)
+    targets = np.concatenate((y_train, y_test), axis=0)
+    kfold = KFold(n_splits=num_folds, shuffle=True)
+    fold_number = 1
+    predicted_targets = np.array([])
+    actual_targets = np.array([])
+    for train, test in kfold.split(inputs, targets):
+        #Initial model
+        # CNN topology - adapted to CNN model from the paper
+        # Build 1D CNN layers
+        model = create_model(input_shape_model)
+        model.compile(loss='categorical_crossentropy', optimizer=opt,metrics=['accuracy'])
+        #If you need a visual representation of the CNN
+        #visualkeras.layered_view(model, scale_xy=1, scale_z=1, max_z=100, max_xy=100, type_ignore=[Dropout, Activation, BatchNormalization], legend=True, to_file='outputCNN2.png')
+        # Print fold
+        print('------------------------------------------------------------------------')
+        print(f'Training for fold {fold_number} ...')
+        # Train the model
+        history = model.fit(inputs[train], targets[train], batch_size=batch_s, epochs=n_epochs, verbose=verbosity)
+        # Generate generalization metrics
+        scores = model.evaluate(inputs[test], targets[test], verbose=0)
+        print(f'Score for fold {fold_number}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%')
+        acc_folds.append(scores[1] * 100)
+        loss_folds.append(scores[0])
+        # Predict values
+        predicted_x = model.predict(inputs[test])
+        classes_x = np.argmax(predicted_x, axis=1)
+        predicted_targets = np.append(predicted_targets, classes_x)
+        targets_true = np.argmax(targets[test], axis=1)
+        actual_targets = np.append(actual_targets, targets_true)
+        # Increase fold number
+        fold_number = fold_number + 1
+    plot_confusion_matrix(predicted_targets, actual_targets, lb)
+    # == Provide average scores ==
+    print('------------------------------------------------------------------------')
+    print('Score per fold')
+    for i in range(0, len(acc_folds)):
+        print('------------------------------------------------------------------------')
+        print(f'> Fold {i+1} - Loss: {loss_folds[i]} - Accuracy: {acc_folds[i]}%')
+    print('------------------------------------------------------------------------')
+    print('Average scores for all folds:')
+    print(f'> Accuracy: {np.mean(acc_folds)} (+- {np.std(acc_folds)})')
+    print(f'> Loss: {np.mean(loss_folds)}')
+    print('------------------------------------------------------------------------')
+
 if __name__ == "__main__":
     main()
