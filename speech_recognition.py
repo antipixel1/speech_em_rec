@@ -1,7 +1,5 @@
 import IPython.display as ipd
 import matplotlib.pyplot as plt
-import librosa
-import os
 import pandas as pd
 import numpy as np
 from sklearn.metrics import confusion_matrix
@@ -9,19 +7,15 @@ from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_score
 from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import KFold
 import sklearn.model_selection as model_selection
-from joblib import Parallel, delayed
 import keras
 from keras.models import Sequential
 from keras.layers import Conv1D, MaxPooling1D, Activation
 from keras.layers import Input, Flatten, Dropout, Activation, BatchNormalization, Dense
-from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.utils import to_categorical
 from sklearn.model_selection import KFold
 import dataframe_generators as df_gens

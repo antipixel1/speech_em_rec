@@ -1,5 +1,4 @@
 import IPython.display as ipd
-import matplotlib.pyplot as plt
 import librosa
 import os
 import pandas as pd
