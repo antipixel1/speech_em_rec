@@ -1,4 +1,4 @@
-# Speech emotion recognition with deep convolutional neural networks
+# Speech emotion recognition with deep convolutional neural networks in various languages
 ## Introduction
 Complete code for a Python Speech Emotion Recognition model using CNN's, tested with the RAVDESS (Ryerson Audio-Visual Database of Emotional Speech and Song),
 CaFE (Canadian French Emotional) and MESD (Mexican Emotional Speech Database) datasets.  
