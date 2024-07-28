@@ -76,9 +76,9 @@ def create_feature_dataframe_cafe(dataframe_filename):
     file_path = []
     for i in range(1,8):
         if i != 4:
-            filename = os.listdir("CaFE_48k/"+str(i)+"/Fort") #Emociones en Fuerte 
+            filename = os.listdir("CaFE_48k/"+str(i)+"/Fort") #Cafe Fort
         else:
-            filename = os.listdir("CaFE_48k/"+str(i)) #Emociones en Fuerte 
+            filename = os.listdir("CaFE_48k/"+str(i)) #Cafe Fort
         for f in filename: #By each actor file
             part = f.split('.')[0].split('-')
             emotion.append(str(part[1]))
