@@ -9,7 +9,7 @@ Links to the datasets: [RAVDESS](https://www.kaggle.com/datasets/uwrfkaggler/rav
 The speech_recognition.py file consists of three main parts:  
 1. Feature extraction (using dataframe_generators.py file).
 2. Creating the CNN model.
-3. Training the model, and obtain the accuracy of the model.
+3. Training the model, and obtaining the average accuracy of all folds.
 
 ## Setup
 In a Linux terminal, run the following command:  
